@@ -20,11 +20,22 @@ BUILTIN_SOUNDS = {
 # the dir pointed to by $SOUND_MCP_SOUNDS_DIR (default: ~/.config/sound-mcp/sounds)
 # and it becomes available by its filename stem.
 AUDIO_EXTS = {".oga", ".ogg", ".wav", ".mp3", ".flac"}
-USER_DIR = Path(
-    os.environ.get("SOUND_MCP_SOUNDS_DIR")
-    or Path.home() / ".config" / "sound-mcp" / "sounds"
+CONFIG_DIR = Path.home() / ".config" / "sound-mcp"
+USER_DIR = Path(os.environ.get("SOUND_MCP_SOUNDS_DIR") or CONFIG_DIR / "sounds")
+DEFAULT_FILE = CONFIG_DIR / "default"
+
+
+def _load_persisted_default() -> str | None:
+    try:
+        return DEFAULT_FILE.read_text().strip() or None
+    except OSError:
+        return None
+
+
+# Precedence: env var (highest, set by mcp.json) > persisted file > builtin.
+DEFAULT_SOUND = (
+    os.environ.get("SOUND_MCP_DEFAULT") or _load_persisted_default() or "warning"
 )
-DEFAULT_SOUND = os.environ.get("SOUND_MCP_DEFAULT", "warning")
 
 
 def _load_sounds() -> dict[str, Path]:
@@ -54,6 +65,7 @@ def list_sounds() -> dict:
         "available": sorted(sounds.keys()),
         "user_dir": str(USER_DIR),
         "user_dir_exists": USER_DIR.is_dir(),
+        "default_file": str(DEFAULT_FILE),
     }
 
 
@@ -75,6 +87,36 @@ def play_sound(name: str | None = None) -> str:
         stderr=subprocess.DEVNULL,
     )
     return f"played {chosen} ({path})"
+
+
+@mcp.tool
+def set_default_sound(name_or_path: str) -> str:
+    """Persist the default sound for future calls of play_sound/notify.
+
+    Accepts either a registered sound name (see list_sounds) or an absolute
+    path to an audio file. The choice is written to ~/.config/sound-mcp/default
+    and survives server restarts. If the env var SOUND_MCP_DEFAULT is set in
+    the MCP client config, it overrides this file.
+    """
+    global DEFAULT_SOUND
+    value = name_or_path.strip()
+    path = _resolve(value)
+    if path is None:
+        return (
+            f"cannot set default: '{value}' is neither a registered sound nor "
+            f"an existing audio file. try list_sounds() to see options."
+        )
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    DEFAULT_FILE.write_text(value + "\n")
+    DEFAULT_SOUND = value
+    note = ""
+    if os.environ.get("SOUND_MCP_DEFAULT"):
+        note = (
+            " (note: SOUND_MCP_DEFAULT env var is also set in this process and "
+            "currently overrides the persisted value; remove it from mcp.json "
+            "to let this stick.)"
+        )
+    return f"default sound set to '{value}' ({path}).{note}"
 
 
 @mcp.tool

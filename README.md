@@ -18,6 +18,7 @@ finishes. Useful for *"poll X until Y, then ping me"* workflows.
 
 - `list_sounds()`: show every available sound name and the current default.
 - `play_sound(name=None)`: play a registered sound, an absolute file path, or the default.
+- `set_default_sound(name_or_path)`: persist a new default (registered name or absolute path) to `~/.config/sound-mcp/default`. Survives restarts. Overridden at runtime by `SOUND_MCP_DEFAULT` if it is set in `mcp.json`.
 - `notify(message, title="Claude", sound=None, urgency="normal", expire_ms=0)`: desktop toast + sound. `urgency=critical`: makes the toast sticky on most desktops.
 
 ## Requirements
